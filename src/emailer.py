@@ -1,8 +1,8 @@
 import boto3
-from config import SENDER, RECIPIENT, REGION
+from src.config import SENDER, RECIPIENT, REGION
 
-def format_alert_email(alerts: list[dict]) -> str:
-    lines = ["The following products are on promotion:\n"]
+def format_alert_email(alerts: list[dict], store_name: str) -> str:
+    lines = [f"The following products are on promotion at {store_name}:\n"]
     for alert in alerts:
         line = (
             f"- {alert['friendly_name']}: "
@@ -13,13 +13,13 @@ def format_alert_email(alerts: list[dict]) -> str:
         lines.append(line)
     return "\n".join(lines)
 
-def send_alert_email(alerts: list[dict]):
+def send_alert_email(alerts: list[dict], store_name: str):
     if not alerts:
         print("No alerts to send.")
         return
 
-    subject = "🛒 NewWorld Specials Alert"
-    body_text = format_alert_email(alerts)
+    subject = f"🛒 NewWorld Specials Alert – {store_name}"
+    body_text = format_alert_email(alerts, store_name)
 
     client = boto3.client("ses", region_name=REGION)
 

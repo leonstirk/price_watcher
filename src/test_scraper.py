@@ -1,12 +1,6 @@
-import json
-from config import STORE_IDS
-from api_client import NewWorldAPIClient
-from watcher import check_watchlist
-
 # src/test_scraper.py
-
-from api_client import NewWorldAPIClient
-from config import STORE_IDS
+from src.config import STORE_IDS
+from src.watcher import run_daily_check
 
 def display_products(products: list[dict]):
     """
@@ -61,69 +55,7 @@ def parse_product_results(api_json: dict) -> list[dict]:
 
 ################################################################################################################################
 ################################################################################################################################
-## Friendly text product search
-
-# if __name__ == "__main__":
-#     store_name = "Dunedin"
-#     store_id = STORE_IDS[store_name]
-
-#     client = NewWorldAPIClient(store_id=store_id)
-
-#     query = "aveeno conditioner"
-#     response_json = client.search_products(search_query=query)
-
-#     # with open("products_dump.json", "w", encoding="utf-8") as f:
-#     #     json.dump(response_json, f, indent=2, ensure_ascii=False)
-
-#     products = parse_product_results(response_json)
-
-#     display_products(products)
-
-################################################################################################################################
-################################################################################################################################
-## Individual product search
-
-# if __name__ == "__main__":
-#     store_name = "Chaffers"
-#     store_id = STORE_IDS[store_name]
-
-#     client = NewWorldAPIClient(store_id=store_id)
-
-#     product_id = "5283196-EA-000"  # Example Aveeno product
-
-#     product = client.get_product_by_id(product_id)
-#     print(product)
-
-
-################################################################################################################################
-################################################################################################################################
-## Check conditions for all products in watchlist
-
-# if __name__ == "__main__":
-#     store_name = "Dunedin"
-#     store_id = STORE_IDS[store_name]
-
-#     client = NewWorldAPIClient(store_id=store_id)
-
-#     alerts = check_watchlist(client)
-
-#     if alerts:
-#         for alert in alerts:
-#             print(f"🚨 {alert['friendly_name']}: Now ${alert['promo_price']:.2f} ({alert['discount_percent']:.1f}% off)")
-#     else:
-#         print("No promotions meeting alert conditions today.")
-
-################################################################################################################################
-################################################################################################################################
 ## Check conditions for all products in watchlist and send email
 
-from emailer import send_alert_email
-
 if __name__ == "__main__":
-    store_name = "Dunedin"
-    store_id = STORE_IDS[store_name]
-    client = NewWorldAPIClient(store_id=store_id)
-
-    alerts = check_watchlist(client)
-
-    send_alert_email(alerts)
+    alerts = run_daily_check()

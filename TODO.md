@@ -46,8 +46,8 @@ The core functionality of the price watcher app is complete:
 ## 💪 Phase 2: Watchlist Expansion & Data Logging
 
 ### JSON-based Watchlist
-- [ ] Convert `watchlist.py` to `watchlist.json`
-- [ ] Build CRUD utilities:
+- [x] Convert `watchlist.py` to `watchlist.json`
+- [x] Build CRUD utilities:
   - `add_to_watchlist()`
   - `remove_from_watchlist()`
   - `update_watchlist()`
@@ -273,3 +273,238 @@ Idea	Value
 🔐 Use AWS Secrets Manager or SSM Parameter Store	To store Bearer tokens or SES sender info securely
 🛡 Retry logic for API calls	Especially helpful once token fetching is automated
 📦 Package as a Python module (pricewatcher/)	Easier testing, importing, and future pip-style usage
+
+
+
+Regroup 2025/05/03
+
+🧱 1. System Architecture Overview
+
+[User/CLI] ───▶ [Search module] ───▶ [Watchlist (JSON store)]
+                                      ▲         │
+                                      │         ▼
+                          [Scheduled Lambda (Dockerized)]
+                                      │
+                                      ▼
+                              [New World API]
+                                      │
+                              [Alert Triggers]
+                                      ▼
+                                [AWS SES Email]
+
+🧩 2. Key Functional Modules
+Module	Responsibility
+token_extractor	Get bearer token using Playwright (with cache fallback)
+token_cache	Handle save/load of token and expiry info
+api_client	Encapsulate New World API access (search, lookup by ID, etc.)
+watchlist_manager	CRUD ops on a persistent watchlist.json
+watcher.py	Periodically check watched items for trigger conditions
+emailer.py	Format and send aggregated alerts via AWS SES
+lambda_function.py	Entry point for Lambda to run run_daily_check()
+watchlist_cli.py	UX path to add/search/remove items via CLI (for manual testing/dev)
+🔄 3. Current Concerns to Revisit
+Concern	Next Design Step
+❗ Store name/ID mismatch	Decide if store name should ever be stored — or only the ID
+❗ Too many emails	Refactor watcher.py to aggregate alerts and send one email per run
+❗ Docker context issues	Ensure relative imports work from /app/src inside container
+❗ Watchlist format	Standardize the structure: include product_id, friendly_name, store_id, etc.
+❗ Config security	All secrets and tokens should be out of versioned code and into .env or AWS Param Store
+❗ Testing vs Deployment behavior	Decide how to cleanly switch between CLI and Lambda execution (e.g. a main.py dev script?)
+🔭 4. Future Features to Plan For
+Feature	Notes
+✅ Auto bearer token refresh	Done via token_cache.py
+🛠️ Historical price storage	Store snapshots for pricing trends and smarter alerting
+👤 Multi-user support	Watchlist becomes user-scoped, emails go to user emails
+🌐 Web frontend	Would call backend or manipulate watchlist.json via API
+🧪 Unit/integration tests	Test CLI commands, token lifecycle, parsing logic
+⏱️ Resilient scheduling	Lambda + EventBridge or CloudWatch rules
+🧰 Admin tools (flush cache, dump alerts, rebuild watchlist)	Helpful for maintenance
+🧭 What to do next
+
+Would you like to:
+
+    Diagram the final app structure with folders/modules?
+
+    Refactor some logic now (e.g. watcher/email bundling)?
+
+    Draft a README or architecture doc?
+
+    Split dev/prod execution paths?
+
+    Or just start with some specific design questions?
+
+Let’s make the moving parts manageable again. What's your preferred next step?
+
+
+
+
+🧭 High-Level System Goals
+
+You're describing an app that supports:
+
+    🧑 Multiple users
+
+    📦 Watchlists linked to user accounts
+
+    🏪 Geographically relevant store scoping
+
+    💌 Alerting when user-tracked products go on special
+
+    🖥 Frontend UI for searching, adding/removing products, managing stores
+
+    💰 Optional billing tier support (e.g., free up to X products)
+
+Let’s walk through the core parts.
+🧱 System Architecture: Scalable Design
+
+Here’s what a future-proof system might look like:
+
+          [User Browser]
+               │
+       ┌───────▼────────┐
+       │    Web Frontend (React/Vue/11ty+JS)    │
+       └───────┬────────┘
+               │  (REST/API)
+          ┌────▼────────────┐
+          │     Backend (API Gateway + Lambda)  │
+          └────┬────────────┘
+               │
+       ┌───────▼──────────────┐
+       │     AWS DynamoDB or RDS (User, Product, Watchlist DBs)
+       └───────┬──────────────┘
+               │
+      ┌────────▼──────────────┐
+      │ S3 (Static files + dynamic watchlist json, tokens etc.)
+      └────────┬──────────────┘
+               │
+   Scheduled ──▼── Lambda (Docker) ──▶ [New World API]
+               │
+               └────▶ SES Alerts to Users
+
+🧩 Key Design Building Blocks
+1. User System
+
+    Sign up / log in (AWS Cognito for low-lift auth)
+
+    Email address is verified (good for SES deliverability)
+
+    Each user has:
+
+        user_id (UUID)
+
+        store preferences (by ID or lat/lon radius)
+
+        watchlist (linked by product ID)
+
+2. Product Catalog DB
+
+    Maintains:
+
+        product_id, name, brand, unit, categories
+
+        price history (aggregated by scraper logic)
+
+        frequency/pattern of specials (could calculate avg. discount, time since last special)
+
+    These are not user-specific, so they live in a shared DB.
+
+3. Watchlist Table
+
+    Each record links:
+
+        user_id
+
+        product_id
+
+        target_price, min_discount, etc.
+
+So when the watcher Lambda runs, it does:
+
+    Fetch all user watchlist entries
+
+    For each product, pull latest price from API
+
+    Check if any entry triggers an alert
+
+    Bundle alerts per user
+
+    Send SES email
+
+🧰 Deployment & Data Interaction
+
+You're absolutely right — you should not rebuild Docker images every time the data changes.
+✅ Instead:
+
+    Your Lambda image stays constant, and
+
+    It reads dynamic inputs (like watchlist JSONs or DB rows) from:
+
+        S3 (for simple setups)
+
+        DynamoDB or RDS (for relational or large setups)
+
+    This means the watchlist, user configs, store lists, etc., live in the cloud and are read live at runtime.
+
+You could even use a "one file per user" model to simplify dynamic loading (e.g., watchlists/user_1234.json in S3).
+🛒 Re: Which Products Are Worth Watching
+
+This is an analytics problem.
+
+You'll want a crawler/scraper running separately from the alerting logic that:
+
+    Collects all product data across all stores on a daily/weekly basis
+
+    Saves to a historical dataset (S3 or DB)
+
+    Computes:
+
+        Discount frequency
+
+        Average discount depth
+
+        Seasonality/patterns
+
+You can then surface this in your frontend:
+
+    “This product is usually on special every 3 weeks with an average 25% discount.”
+
+🧩 Design Choices to Decide Next
+
+Here are some key decision forks you’ll want to pick a path for:
+Feature	Recommendation
+Auth	Use AWS Cognito or Clerk/Supabase Auth
+Watchlist DB	Start with JSON in S3; move to DynamoDB if scaling
+Deployment	Containerized Lambda (EventBridge for scheduling)
+Frontend	Start with static site + JS hitting API Gateway
+Product DB	One product cache file per day or per store in S3
+✅ Suggested Next Steps
+
+    Move watchlist JSONs to S3: One per user
+
+    Modify watcher.py to read all user watchlists from S3
+
+    Write a products/ data structure in S3 for analytics
+
+    Map out database schema if you go RDS/Dynamo later
+
+    Design how the frontend will interface with the backend:
+
+        Search products
+
+        Add to watchlist
+
+        View/edit alerts
+
+    Add an admin CLI for dumping data, rebuilding product cache, etc.
+
+Would you like help:
+
+    Sketching a concrete folder + S3 layout for step 1?
+
+    Writing code to load multiple watchlists from S3?
+
+    Planning for a frontend API layer?
+
+    Or drawing a full deployment diagram?
+
+Let’s tackle this iteratively.
