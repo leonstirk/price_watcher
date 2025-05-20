@@ -6,3 +6,4 @@ venv/
 src/config.py
 data/watchlist.json
 .cache/
+products_dump.json
