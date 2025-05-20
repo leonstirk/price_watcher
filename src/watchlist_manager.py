@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-WATCHLIST_PATH = Path("watchlist.json")
+WATCHLIST_PATH = Path("data/watchlist.json")
 
 ### Core I/O Functions ###
 

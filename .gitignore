@@ -4,5 +4,5 @@ __pycache__/
 *.zip
 venv/
 src/config.py
-src/watchlist.json
+data/watchlist.json
 .cache/
